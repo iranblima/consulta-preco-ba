@@ -1,0 +1,5 @@
+{
+  "name": "precodahora-busca",
+  "private": true,
+  "engines": { "node": ">=18.14" }
+}
