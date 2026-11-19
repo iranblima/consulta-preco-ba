@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Preço da Hora — busca rápida</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #fff; --text: #1d2330; --muted: #6b7280;
+    --line: #e5e7eb; --accent: #0b5cad; --price: #0a7a3d; --warn: #b45309;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111418; --card: #1b2027; --text: #e8eaed; --muted: #9aa3ad;
+            --line: #2b323b; --accent: #5aa4f0; --price: #4cc985; --warn: #f0a24a; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background: var(--bg); color: var(--text); }
+  header { background: var(--card); border-bottom: 1px solid var(--line); padding: 16px; position: sticky; top: 0; z-index: 2; }
+  .wrap { max-width: 880px; margin: 0 auto; }
+  h1 { font-size: 18px; margin: 0 0 10px; }
+  form { display: flex; gap: 8px; }
+  input { flex: 1; padding: 11px 12px; font-size: 16px; border: 1px solid var(--line); border-radius: 8px;
+          background: var(--bg); color: var(--text); }
+  button { padding: 11px 18px; font-size: 15px; border: 0; border-radius: 8px; background: var(--accent);
+           color: #fff; cursor: pointer; font-weight: 600; }
+  button:disabled { opacity: .55; cursor: default; }
+  .info { color: var(--muted); font-size: 13px; margin-top: 8px; }
+  main { padding: 16px; }
+  .resumo { color: var(--muted); margin: 0 0 12px; }
+  .item { display: grid; grid-template-columns: 64px 1fr auto; gap: 14px; align-items: start;
+          background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; margin-bottom: 10px; }
+  .item img { width: 64px; height: 64px; object-fit: contain; background: #fff; border-radius: 6px; }
+  .prod { font-weight: 600; }
+  .loja { margin-top: 4px; }
+  .loja b { font-weight: 600; }
+  .end, .meta { color: var(--muted); font-size: 13px; }
+  .meta a { color: var(--accent); text-decoration: none; }
+  .preco { text-align: right; white-space: nowrap; }
+  .preco .v { font-size: 20px; font-weight: 700; color: var(--price); }
+  .preco .d { font-size: 13px; color: var(--muted); }
+  .preco .desc { font-size: 12px; color: var(--warn); }
+  .msg { text-align: center; color: var(--muted); padding: 32px 0; }
+  .erro { color: #c62828; }
+  #mais { display: block; margin: 16px auto; }
+  #mais[hidden] { display: none; }
+  @media (max-width: 560px) {
+    .item { grid-template-columns: 48px 1fr; }
+    .item img { width: 48px; height: 48px; }
+    .preco { grid-column: 2; text-align: left; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <h1>Preço da Hora — busca rápida</h1>
+    <form id="f">
+      <input id="termo" placeholder="Digite o produto (ex.: arroz, café, 7896006711100)" autocomplete="off" autofocus>
+      <button id="btn">Buscar</button>
+    </form>
+    <div class="info">Jequié · raio de 15 km · últimas 72 h · menor preço primeiro</div>
+  </div>
+</header>
+<main class="wrap">
+  <p class="resumo" id="resumo"></p>
+  <div id="lista"><div class="msg">Digite um produto para começar.</div></div>
+  <button id="mais" hidden>Carregar mais</button>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const brl = v => v == null ? '—' : v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+const tel = t => { t = String(t || '').replace(/\D/g, ''); return t.length >= 10 ? `(${t.slice(0,2)}) ${t.slice(2, -4)}-${t.slice(-4)}` : t; };
+
+let termoAtual = '', pagina = 1, totalPaginas = 1;
+
+function card({ produto: p, estabelecimento: e }) {
+  const end = [e.endLogradouro, e.endNumero].filter(Boolean).join(', ');
+  const local = [e.bairro, e.municipio].filter(Boolean).join(' · ');
+  const mapa = `https://www.google.com/maps/search/?api=1&query=${e.latitude},${e.longitude}`;
+  const temDesc = p.precoBruto && p.precoLiquido && p.precoBruto > p.precoLiquido;
+  return `
+  <div class="item">
+    <img src="${esc(p.foto)}" alt="" loading="lazy" onerror="this.style.visibility='hidden'">
+    <div>
+      <div class="prod">${esc(p.descricao)}</div>
+      <div class="loja"><b>${esc(e.nomeEstabelecimento)}</b></div>
+      <div class="end">${esc(end)}${local ? ' — ' + esc(local) : ''}</div>
+      <div class="meta">
+        ${e.distancia != null ? e.distancia.toFixed(1).replace('.', ',') + ' km · ' : ''}
+        ${e.telefone ? esc(tel(e.telefone)) + ' · ' : ''}
+        <a href="${mapa}" target="_blank" rel="noopener">ver no mapa</a>
+      </div>
+    </div>
+    <div class="preco">
+      <div class="v">${brl(p.precoLiquido ?? p.precoUnitario)}</div>
+      ${temDesc ? `<div class="desc">de ${brl(p.precoBruto)}</div>` : ''}
+      <div class="d">${esc(p.unidade || '')}</div>
+      <div class="d">${esc(p.intervalo || '')}</div>
+    </div>
+  </div>`;
+}
+
+async function buscar(novo) {
+  if (novo) { pagina = 1; $('#lista').innerHTML = '<div class="msg">Buscando…</div>'; $('#resumo').textContent = ''; }
+  $('#btn').disabled = $('#mais').disabled = true;
+  try {
+    const r = await fetch(`/api/buscar?termo=${encodeURIComponent(termoAtual)}&pagina=${pagina}`);
+    const j = await r.json();
+    if (!r.ok || j.erro) throw new Error(j.erro || `HTTP ${r.status}`);
+    const itens = j.resultado || [];
+    totalPaginas = j.totalPaginas || 1;
+    if (novo) $('#lista').innerHTML = '';
+    if (novo && !itens.length) {
+      $('#lista').innerHTML = '<div class="msg">Nenhum resultado para esse produto.</div>';
+    }
+    $('#lista').insertAdjacentHTML('beforeend', itens.map(card).join(''));
+    const faixa = j.intervaloPreco ? ` · de ${brl(j.intervaloPreco.min)} a ${brl(j.intervaloPreco.max)}` : '';
+    $('#resumo').textContent = `${j.totalRegistros ?? 0} registros${faixa} · página ${j.pagina} de ${totalPaginas}`;
+    $('#mais').hidden = pagina >= totalPaginas;
+  } catch (e) {
+    if (novo) $('#lista').innerHTML = `<div class="msg erro">Erro: ${esc(e.message)}</div>`;
+    else $('#resumo').textContent += ` · erro ao carregar mais: ${e.message}`;
+  } finally {
+    $('#btn').disabled = $('#mais').disabled = false;
+  }
+}
+
+$('#f').addEventListener('submit', ev => {
+  ev.preventDefault();
+  const t = $('#termo').value.trim();
+  if (!t) return;
+  termoAtual = t;
+  buscar(true);
+});
+$('#mais').addEventListener('click', () => { pagina++; buscar(false); });
+</script>
+</body>
+</html>
